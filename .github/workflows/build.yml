@@ -1,0 +1,50 @@
+name: Build MAR-PD APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # ম্যানুয়ালি রান করার অপশন
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      
+    - name: Grant gradlew permission
+      run: chmod +x gradlew
+      
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
+      
+    - name: Build Release APK
+      run: |
+        ./gradlew assembleRelease
+        echo "Release APK built"
+        
+    - name: Upload APK artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: MAR-PD-APKs
+        path: |
+          app/build/outputs/apk/debug/
+          app/build/outputs/apk/release/
+        retention-days: 30
+        
+    - name: Generate APK Info
+      run: |
+        echo "📱 MAR-PD ☠️ APK Build Complete"
+        echo "Build Time: $(date)"
+        echo "Commit: ${{ github.sha }}"
