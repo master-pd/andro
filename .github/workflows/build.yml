@@ -3,7 +3,7 @@ name: Build MAR-PD APK
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:  # ম্যানুয়ালি রান করার অপশন
+  workflow_dispatch:
 
 jobs:
   build:
@@ -23,28 +23,53 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
       
-    - name: Grant gradlew permission
-      run: chmod +x gradlew
-      
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug
-      
-    - name: Build Release APK
+    # First try to use existing gradlew, if not create one
+    - name: Check for gradlew
+      id: check_gradlew
       run: |
-        ./gradlew assembleRelease
-        echo "Release APK built"
+        if [ -f "gradlew" ]; then
+          echo "gradlew exists"
+          chmod +x gradlew
+        else
+          echo "gradlew not found, will use gradle wrapper"
+        fi
+      
+    - name: Initialize Gradle Wrapper
+      run: |
+        # Install gradle if not present
+        if ! command -v gradle &> /dev/null; then
+          echo "Installing Gradle..."
+          wget https://services.gradle.org/distributions/gradle-8.0-bin.zip -P /tmp
+          unzip -d /opt/gradle /tmp/gradle-8.0-bin.zip
+          echo "export PATH=/opt/gradle/gradle-8.0/bin:\$PATH" >> ~/.bashrc
+          export PATH=/opt/gradle/gradle-8.0/bin:$PATH
+        fi
         
-    - name: Upload APK artifacts
+        # Create gradle wrapper if not exists
+        if [ ! -f "gradlew" ]; then
+          echo "Creating gradle wrapper..."
+          gradle wrapper --gradle-version 8.0
+          chmod +x gradlew
+        fi
+        
+    - name: Build with Gradle
+      run: |
+        ./gradlew assembleDebug --no-daemon
+        
+    - name: List APK files
+      run: find . -name "*.apk" -type f
+      
+    - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: MAR-PD-APKs
-        path: |
-          app/build/outputs/apk/debug/
-          app/build/outputs/apk/release/
-        retention-days: 30
+        name: MAR-PD-APK
+        path: app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 7
         
-    - name: Generate APK Info
-      run: |
-        echo "📱 MAR-PD ☠️ APK Build Complete"
-        echo "Build Time: $(date)"
-        echo "Commit: ${{ github.sha }}"
+    - name: Upload all APKs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: All-APK-Files
+        path: app/build/outputs/apk/
+        retention-days: 7
